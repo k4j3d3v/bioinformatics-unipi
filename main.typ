@@ -22,7 +22,7 @@
     //handout: true,
     //show-notes-on-second-screen: right,
   ),
-  progress-bar: false,
+  progress-bar: true,
 )
 
 #title-slide(
@@ -207,8 +207,8 @@ We want to encode the sequences through them
   + $pi(S_i)=<[<i,1>]_(~_(<G,pi>)), dots, [<i,|S_i|>]_(~_(<G,pi>))> forall i in {1, dots, n}$
   ]
   - $~_(<G,pi>)$ is defined s.t.: $<i,j> ~_(<G,pi>) <i',j'> <=> pi(S_i)[j] = pi(S_(i'))[j']$
-  ]
 ]
+
 #slide(title: "Sequences representation: k-mer")[
   #linebreak()
   Let $S_i, S_(i') in cal(S)$, assume that they have a common $k$-mer $S_i [p dots p+k-1] = S_(i')[p' dots p'+k-1]$
@@ -234,55 +234,232 @@ We want to encode the sequences through them
 ]
 #focus-slide()[
   People waiting for the algorithm details:
-  #image("images/download.png")
+  #image("images/meme.png")
 ]
-#slide(repeat: 3, self => [
-  #let (uncover, only, alternatives) = utils.methods(self)
+= AlfaPang algorithm
 
-  At subslide #self.subslide, we can
+#slide(title: "(back to) AlfaPang")[
+    - *Inputs*: a collection of sequences $S$ and a positive natural number $k$
+    - *Outputs*: the quotient graph $G'$
+    
+- *Algorithm steps*:
+  
+  + Build the generic representation graph $G=<V,E>$ #emoji.checkmark.box
+  
+  + Build a weighted bipartite graph with parts $V$ and $B$
+    - $B$ is a set of vertices labeled by canonical $k$-mers of $S$ #emoji.checkmark.box
+    - each edge $e$ is assigned a value $C(e) in {-k, ..., -1,1, ..., k}$ #emoji.magnify.r
+      - $C(<<i,j>, b>)=c$ means that: 
+        + the position in the sequence $<i, j>$  can be extended to a $k$-mer represented by $b$
+        + $c$ indicates the position of $S_i [j]$ in the $k$-mer 
+]
 
-  use #uncover("2-")[`#uncover` function] for reserving space,
+#slide(title: "AlfaPang: edges weighting")[
+  
+  - $C(<<i,j>, b>)=c <=>$
+      - $ S_i [j-c+1 .. j+k-c]=l(b)$ for $c > 0$
+      - $ S_i [j-c-k .. j-c+1]=l(b)^(-1) "for" c < 0$ 
+  
+  - Embeds the concept of *bidirected variation graphs*
+    - They naturally represent the double-stranded structure of DNA
+    
+  
+    #pause
+  
+  3. Build the quotient graph $G'$:
+    - Traverse the bipartite graph in a BFS fashion starting from a vertex $v$
+      - There are _constraints to adhere_ to during the visit #emoji.magnify.r
+    - Every vertex belonging to $V$, visited during one such run, establishes an equivalence class  
+  
+]
+#slide(title: "AlfaPang: the algorithm in practice")[
+  In the algorithm implementation:
+  - the graph is not built explicitly
+  
+  But, the following data structures are used:
+  #image("images/alfa_ds.drawio.svg")
+  
+]
 
-  use #only("2-")[`#only` function] for not reserving space,
+#slide(title: "AlfaPang: the algorithm in practice - data structures")[
+  #image("images/alfa_ds_index.drawio.png")
 
-  #alternatives[call `#only` multiple times \u{2717}][use `#alternatives` function #sym.checkmark] for choosing one of the alternatives.
+  - |`R`|$= |{"distinct canonical k-mers in S"}| $
+    - *Inverted index*: fast locating of $k$-mer occurrences in `s`
+  #pause
+  - `F`: maps positions of `s` to vertex IDs of the output graph
+]
+
+#slide(title: "AlfaPang: finally some code!")[
+  #image("images/quotient_code.png")
+
+]
+#slide(title: "AlfaPang: a run example")[
+  We want to move from the bipartite graph to the quotient graph:
+  
+  #image("images/bipartite_quotient_graphs.png")
+  Now, say we want to find the *#text(fuchsia)[pink]* equivalence class.
+
+]
+#slide(title: "AlfaPang: a run example")[
+  #image("images/ds_beginning.png")
+  - We have that `F` at that point is:
+  `F = [0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]`
+  and `v=2`
+  #pause 
+  - To do that, let's start with the symbol "A" at position 3, and so:
+    - `F[3] = 2` (v)
+    - `K[3]` $->$ *2* $=>$ `R[`*2*`] = [3, 15]`
+]
+#slide(title: "AlfaPang: a run example")[
+  - Next, we backtrack one position to `K[2]`
+      - `K[2]` $->$ *1* $=>$ `R[`*1*`] = [2`#emoji.checkmark.box, *9*`]`
+      - $=>$ `F[10]=2`(9+1)
+      
+    #pause
+  
+  - Finally, we backtrack one more position to `K[1]`
+    - but `K[1]`$->$ #text(red)[0] $=>$ not the third symbol in any $k$-mer
+  - 10 and 15 were pushed into the queue, so the procedure is repeated for both of them
+    - No additional positions identified though
+]
+#slide(title: "AlfaPang: a run example")[
+  So, we end up having: 
+  
+  `F = [0, 1, 2, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0]`
+  
+  `s = [$, G, A, T, G, C, $, A, G, A, T, T, $, T, A, T, G, A, $]`
+  #figure(
+    image("images/subquotient_graph.png"),
+    caption: [Quotient graph that we obtain from the current F. ])
+]
+= Experiments
+#slide(title: "Experiments!")[
+  #align(horizon)[
+    #figure(
+      image("images/mad-scientist.png")
+    )
+  
+  ]
+]
+#slide(title: "Design of experiments: datasets and parameter setting", repeat: 3, self => [
+  - Tested on two series of genome collections:
+    - Escherichia coli #uncover("2-")[: 50, 100, 200 and 400 haplotypes, 250Mbp - 17Gbp total lengths]
+    - Saccharomyces cerevisiae #uncover("2-")[: 16, 32, 64 and 118 haplotypes, 195Mbp - 1.44Gbp total lengths]
+ #uncover("3-")[
+    #align(horizon)[
+     * How do we choose $k$?* 
+   ]
+ ]
 ])
+#slide(title:"Some evaluation for k choice", repeat: 5, self => [
+  #let (uncover, only, alternatives) = utils.methods(self)
+  - Before the analysis, the complexity and repetitiveness were estimated
+  - Calculation of the fractions of $k$-mers:
+    - _Overrepresented_ #uncover("2-")[: occurring more frequently than the number of genomes]
+    - _Rare_ #uncover("2-")[: occurring only once]
+  
+    #uncover("3-")[
+      Too low $k =>$ large fraction of overrepresented $k$-mers #uncover("4-")[$=>$ merge of non-homologous fragments]
+     
+      Too large $k =>$ increase the fraction of rare $k$-mers  #uncover("4-")[$=>$ poor sequence similarity detection]
+    ]
+    #uncover("5-")[
+        #align(horizon)[
+     *Need to find a trade-off!* 
+     ]
+    ]
+])
+#slide(title: "Experiments: how to choose k?")[
 
-#slide(title: "Theorems")[
-  Theorems can be created with the `#theorem` command. Similarly, there are `#proof`, `#definition`, `#example`, `#lemma`, and `#corollary`. \
-  For example, here is a theorem:
-  #theorem(title: "Important one")[
-    Using theorems is easy.
-  ]
-  #proof[
-    This was very easy, wasn't it?
-  ]
-  A definition already given by well-known mathematicians @Author1978definition is:
-  #definition(title: "Important stuff")[
-    _Important stuff_ is defined as the stuff that is important to me:
-    $
-      exp(upright(i) pi) + 1 = 0.
-    $
-  ]
+    #image("images/k_choice_table.png")
+    #pause
+    *$k$ = 47*
+    #pause
+    - overrepresented fraction $lt$ 5%
+    - rare fraction twice smaller
+      
+]
+#slide(title: "Experiments: evaluation strategies")[
+  
+ Evaluated on two levels:
+  
+ + Computational efficiency:  
+      - `AlfaPang` #emoji.swords `pggb` first two steps (`wfmash+seqwish`) 
+ 
+ + Computational efficiency and output graph properties:
+      - `AlfaPang+` = `AlfaPang + smoothxg + gfaffix` (`pggb` last two refinement steps) 
+      
+      - `AlfaPang+` #emoji.swords  `pggb` #emoji.swords `Minigraph-Cactus`
 ]
 
-#slide(title: "Equations")[
-  Equations with a label with a label will be numbered automatically:
-  $
-    integral_0^oo exp(-x^2) dif x = pi/2
-  $<eq:important>
-  We can then refer to this equation as @eq:important.
-  Equations without a label will not be numbered:
-  $
-    sum_(n=1)^oo 1/n^2 = pi^2/6
-  $
-  Inline math equations will not break across lines, which can be seen here: $a x^2 + b x + c = 0 => x_(1,2) = (-b plus.minus sqrt(b^2 - 4 a c))/(2 a)$
+#slide(title: "Experiments: computational efficiency")[
+  #image("images/performance_1.png")
+  #image("images/performance_2.png")
 ]
 
-#show: appendix
-
-= References
-
-#slide(title: "References")[
-  #bibliography("bibliography.bib", title: none)
+#slide(title: "On the output graphs: graph topology")[
+  *Goal:* measure the complexity of the produced pangenome graphs
+  
+  $=>$ comparison of the number of nodes and edges
+  #columns()[
+    #image("images/table_nodes.png")
+    #image("images/table_edges.png")
+  ]
+  - We notice again that `MiniGraph-Cactus` performs worse: $17-45%\/10-58%$ _S. cerevisia_/_E. coli_ more *nodes* than `AlfaPang+`
+  #image("images/table_nodes_length.png")
+  - `AlfaPang+` shows an *higher rate compression*
 ]
+#slide(title: "On the output graphs: graph similarity")[
+      #image("images/table_aligned_pos.png")
+      - number of aligned pairs: `AlfaPang+` larger than the others
+      - A more precise analysis showed that:
+        - `AlfaPang+` was able to find $96-99%$ of the pairs found by `pggb`
+]
+#focus-slide()[
+  The end
+  #pause
+  ... almost
+]
+= Conclusion
+#slide(title:"Summing up")[
+  #linebreak()
+  - We introduced `AlfaPang`: novel algorithm for building pangenome graphs
+    - their structure is strictly defined by the $k$-completeness and $k$-faithfulness properties
+    
+  #pause
+  
+  - Runtime and memory usage scale *linearly* with the number of genomes
+    #pause
+    $=>$ process much larger sets than the other state-of-art alternatives
+  #pause  
+  - It is really *sensitive* to *sequence similarity*
+    - deciding if given fragments should be aligned in a pangenome graph is somewhat arbitrary
+ 
+]
+#slide(title:"Summing up")[
+   #pause  
+  - `MiniGraph-Cactus`: differs in the assumptions on how the pangenome graph should look like
+    - Make possible to reduce the number of sequence alignments 
+    #pause
+    $=>$ better computational efficiency than `pggb`
+    #pause
+    but still *worse* than `AlfaPang` in terms of *memory usage*
+    
+  - Close relationship with de Bruijn graphs
+  #pause
+  $=>$ Excessive *entanglement* in areas representing *low-complexity sequence regions*
+  #pause
+    - Thus removed by a refinement step by means of `smoothxg` tool #pause $=>$ `AlfaPang+`
+    #pause  
+        - This step dominates the computation time
+  #pause $=>$ More precise tuning on parameters could allow to reduce it
+]
+#ending-slide(title: "The end")[Thanks for the attention!]
+// #show: appendix
+
+// = References
+
+// #slide(title: "References")[
+//   #bibliography("bibliography.bib", title: none)
+// ]
